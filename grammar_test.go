@@ -62,3 +62,16 @@ func TestAction(t *testing.T) {
 		t.Error("action failed")
 	}
 }
+
+func TestRecurse(t *testing.T) {
+	var parens grammar
+
+	refparens := Ref("parens", &parens)
+	parens = or{
+		and{str{"("}, refparens, str{")"}},
+		str{"x"},
+	}
+
+	test(t, parens, "(((x)))", 7)
+	test(t, parens, "(((x))", -1)
+}

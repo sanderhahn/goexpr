@@ -192,10 +192,6 @@ func (ahead ahead) String() string {
 	return "> ( " + ahead.grammar.String() + " )"
 }
 
-func notahead(grammar grammar) grammar {
-	return ahead{not{grammar}}
-}
-
 type action struct {
 	act     func(match string) bool
 	grammar grammar
@@ -213,6 +209,27 @@ func (action action) parse(in string) int {
 
 func (action action) String() string {
 	return "@ ( " + action.grammar.String() + " )"
+}
+
+type ref struct {
+	name string
+	rule *grammar
+}
+
+func Ref(name string, rule *grammar) *ref {
+	return &ref{name, rule}
+}
+
+func (ref ref) parse(in string) int {
+	return (*ref.rule).parse(in)
+}
+
+func (ref ref) String() string {
+	return "<" + ref.name + ">"
+}
+
+func notahead(grammar grammar) grammar {
+	return ahead{not{grammar}}
 }
 
 func loop1(item grammar) grammar {
