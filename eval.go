@@ -287,7 +287,9 @@ func init() {
 	assignOp := or{and{str{"="}, notahead{str{"="}}}, alts("+= -= **= *= /= ||= |= &&= &= %= ^=")}
 	digit := group{"0123456789"}
 	alpha := or{rang{'a', 'z'}, rang{'A', 'Z'}}
-	num := loop1(digit)
+	num := or{
+		and{str{"."}, loop1(digit)},
+		and{loop1(digit), opt{and{str{"."}, loop{digit}}}}}
 	id := and{alpha, loop{or{alpha, digit}}}
 
 	lparens := loop{action{nil, str{"("}, calc.paren}}
