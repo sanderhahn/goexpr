@@ -85,6 +85,8 @@ func TestExpr(t *testing.T) {
 	testEvalVar(" a += 1", "a", 6)
 	testEvalVar("a=a==6", "a", 1)
 	testEval(" a += 1", 2)
+	testEvalVar("c=1", "c", 1)
+	testEvalVar("c+=2*3", "c", 7)
 
 	testEval(".5", .5)
 	testEval("2.", 2.)

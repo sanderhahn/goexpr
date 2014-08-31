@@ -40,21 +40,20 @@ func (e *evaluator) operator(in string) bool {
 
 func (e *evaluator) assignment(identifier string, operator string) bool {
 	val, ok := e.machine.eval()
-	if ok {
-		if operator != "=" {
-			prev, ok := e.env[identifier]
-			if !ok {
-				return false
-			}
-			e.machine.push(prev)
-			e.machine.pushOp(operator[:len(operator)-1])
-			val, ok = e.machine.eval()
-			if !ok {
-				return false
-			}
-		}
-		e.env[identifier] = val
+	if !ok {
+		return false
 	}
+	if operator != "=" {
+		if !e.lookup(identifier) {
+			return false
+		}
+		e.machine.pushOp(operator[:len(operator)-1])
+		val, ok = e.machine.eval()
+		if !ok {
+			return false
+		}
+	}
+	e.env[identifier] = val
 	return true
 }
 
