@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"testing"
 )
@@ -13,20 +14,22 @@ func TestExpr(t *testing.T) {
 			t.Error(err)
 		}
 		if val != expected {
+			fmt.Printf("stack %v\nops %v\n", e.machine.stack, e.machine.ops)
+			fmt.Printf("%s != %g\n", in, expected)
 			t.Errorf("%s != %g", in, expected)
 		}
 	}
 
-	test(t, statement, "10", 2)
-	test(t, statement, "1+2*3", 5)
-	test(t, statement, "(1)", 3)
-	test(t, statement, "(1))", -1)
-	test(t, statement, ")", -1)
-	test(t, statement, "+", -1)
-	test(t, statement, "(1+1)", 5)
-	test(t, statement, "1+)1", -1)
-	test(t, statement, "(1)+1)", -1)
-	test(t, statement, "1==1==1", -1)
+	test(t, e.expr, "10", 2)
+	test(t, e.expr, "1+2*3", 5)
+	test(t, e.expr, "(1)", 3)
+	test(t, e.expr, "(1))", -1)
+	test(t, e.expr, ")", -1)
+	test(t, e.expr, "+", -1)
+	test(t, e.expr, "(1+1)", 5)
+	test(t, e.expr, "1+)1", -1)
+	test(t, e.expr, "(1)+1)", -1)
+	test(t, e.expr, "1==1==1", -1)
 
 	testEval("1-2", 1-2)
 	testEval("1+2", 1+2)
@@ -63,7 +66,7 @@ func TestExpr(t *testing.T) {
 	testEval(" ( 1 + 2 ) ", 3)
 	testEval(" 1 + ( 2 + 3 ) ", 6)
 
-	calc.env["a"] = 5
+	e.env["a"] = 5
 	testEval("a", 5)
 
 	testEvalVar := func(in string, name string, expected float64) {
@@ -71,9 +74,9 @@ func TestExpr(t *testing.T) {
 		if err != nil {
 			t.Error(err)
 		}
-		val, ok := calc.env[name]
+		val, ok := e.env[name]
 		if !ok || val != expected {
-			t.Errorf("%s != 5", name, expected)
+			t.Errorf("%s != %g", name, expected)
 		}
 	}
 
@@ -81,6 +84,7 @@ func TestExpr(t *testing.T) {
 	testEvalVar("b=3", "b", 3)
 	testEvalVar(" a += 1", "a", 6)
 	testEvalVar("a=a==6", "a", 1)
+	testEval(" a += 1", 2)
 
 	testEval(".5", .5)
 	testEval("2.", 2.)

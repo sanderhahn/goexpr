@@ -42,22 +42,22 @@ func Test(t *testing.T) {
 	// loop consumes greedy and this will always fail
 	test(t, and{loop{str{"*"}}, str{"*"}, eof{}}, "***", -1)
 
-	test(t, and{str{"1"}, notahead{str{"1"}}}, "12", 1)
-	test(t, and{str{"1"}, notahead{str{"1"}}}, "11", -1)
+	test(t, not{str{"1"}}, "1", -1)
+	test(t, not{str{"1"}}, "2", 0)
+	test(t, ahead{str{"1"}}, "1", 0)
+
+	test(t, and{str{"1"}, notahead(str{"1"})}, "12", 1)
+	test(t, and{str{"1"}, notahead(str{"1"})}, "11", -1)
 }
 
 func TestAction(t *testing.T) {
 	var mymatch string
-	clear := func() bool {
-		mymatch = ""
-		return true
-	}
 	match := func(match string) bool {
 		mymatch = match
 		return true
 	}
 
-	grammar := and{str{"lang: "}, action{clear, loop1(rang{'a', 'z'}), match}, eof{}}
+	grammar := and{str{"lang: "}, action{match, loop1(rang{'a', 'z'})}, eof{}}
 	if grammar.parse("lang: go") >= 0 && mymatch != "go" {
 		t.Error("action failed")
 	}

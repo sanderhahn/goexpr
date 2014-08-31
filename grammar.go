@@ -12,6 +12,8 @@ type grammar interface {
 	fmt.Stringer
 }
 
+var epsilon grammar = str{}
+
 type eof struct{}
 
 func (_ eof) parse(s string) int {
@@ -69,7 +71,7 @@ func (or or) parse(in string) int {
 }
 
 func (or or) String() string {
-	return join(or, " | ")
+	return join(or, " / ")
 }
 
 type loop struct {
@@ -90,7 +92,7 @@ func (loop loop) parse(in string) int {
 }
 
 func (loop loop) String() string {
-	return loop.grammar.String() + "*"
+	return "( " + loop.grammar.String() + " ) *"
 }
 
 type err struct {
@@ -145,7 +147,7 @@ func (group group) parse(in string) int {
 }
 
 func (group group) String() string {
-	return fmt.Sprintf("[%s]", group.group)
+	return fmt.Sprintf("[%q]", group.group)
 }
 
 type opt struct{ grammar grammar }
@@ -159,41 +161,50 @@ func (opt opt) parse(in string) int {
 }
 
 func (opt opt) String() string {
-	return fmt.Sprintf("%s ?", opt.grammar)
+	return "( " + opt.grammar.String() + " ) ?"
 }
 
-type notahead struct{ grammar grammar }
+type not struct{ grammar grammar }
 
-func (notahead notahead) parse(in string) int {
-	n := notahead.grammar.parse(in)
-	if n >= 0 {
-		return -1
+func (not not) parse(in string) int {
+	n := not.grammar.parse(in)
+	if n == -1 {
+		return 0
 	}
-	return 0
+	return -1
 }
 
-func (notahead notahead) String() string {
-	return fmt.Sprintf("q(?! %s )", notahead.grammar)
+func (not not) String() string {
+	return "! ( " + not.grammar.String() + " )"
+}
+
+type ahead struct{ grammar grammar }
+
+func (ahead ahead) parse(in string) int {
+	n := ahead.grammar.parse(in)
+	if n >= 0 {
+		return 0
+	}
+	return -1
+}
+
+func (ahead ahead) String() string {
+	return "> ( " + ahead.grammar.String() + " )"
+}
+
+func notahead(grammar grammar) grammar {
+	return ahead{not{grammar}}
 }
 
 type action struct {
-	start   func() bool
+	act     func(match string) bool
 	grammar grammar
-	end     func(match string) bool
 }
 
 func (action action) parse(in string) int {
-	if action.start != nil {
-		if !action.start() {
-			return -1
-		}
-	}
 	n := action.grammar.parse(in)
 	if n >= 0 {
-		if action.end == nil {
-			return n
-		}
-		if action.end(in[0:n]) {
+		if action.act(in[:n]) {
 			return n
 		}
 	}
@@ -201,7 +212,7 @@ func (action action) parse(in string) int {
 }
 
 func (action action) String() string {
-	return fmt.Sprintf("@(%s)", action.grammar)
+	return "@ ( " + action.grammar.String() + " )"
 }
 
 func loop1(item grammar) grammar {
@@ -224,5 +235,5 @@ func join(grammar []grammar, sep string) string {
 	for _, s := range grammar {
 		more = append(more, s.String())
 	}
-	return "(" + strings.Join(more, sep) + ")"
+	return "( " + strings.Join(more, sep) + " )"
 }

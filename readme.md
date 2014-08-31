@@ -10,5 +10,5 @@ Expression evaluation using [Shunting-yard algorithm](http://en.wikipedia.org/wi
 ```
 
 The parsing is done by building a grammar structure.
-Semantics are added by surrounding `actions` with callbacks on `start` and `end`.
+Semantics are added by surrounding `actions` with a callback.
 Backtracking stops after a succesful alternative is found.
