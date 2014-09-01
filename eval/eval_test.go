@@ -1,10 +1,18 @@
-package main
+package eval
 
 import (
 	"fmt"
 	"math"
 	"testing"
+
+	. "github.com/sanderhahn/goexpr/grammar"
 )
+
+func test(t *testing.T, grammar Grammar, input string, ok int) {
+	if n := grammar.Parse(input); n != ok {
+		t.Errorf("input %s (%d != %d)\ngrammar %s\n", input, n, ok, grammar)
+	}
+}
 
 func TestExpr(t *testing.T) {
 
@@ -14,7 +22,7 @@ func TestExpr(t *testing.T) {
 			t.Error(err)
 		}
 		if val != expected {
-			fmt.Printf("stack %v\nops %v\n", e.machine.stack, e.machine.ops)
+			// fmt.Printf("stack %v\nops %v\n", e.machine.stack, e.machine.ops)
 			fmt.Printf("%s != %g\n", in, expected)
 			t.Errorf("%s != %g", in, expected)
 		}

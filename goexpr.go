@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+
+	. "github.com/sanderhahn/goexpr/eval"
 )
 
 const prompt = "> "
