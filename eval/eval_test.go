@@ -4,40 +4,26 @@ import (
 	"fmt"
 	"math"
 	"testing"
-
-	. "github.com/sanderhahn/goexpr/grammar"
 )
-
-func test(t *testing.T, grammar Grammar, input string, ok int) {
-	if n := grammar.Parse(input); n != ok {
-		t.Errorf("input %s (%d != %d)\ngrammar %s\n", input, n, ok, grammar)
-	}
-}
 
 func TestExpr(t *testing.T) {
 
+	env := NewEnvironment()
+
 	testEval := func(in string, expected float64) {
-		val, err := Eval(in)
+		val, err := env.Eval(in)
 		if err != nil {
 			t.Error(err)
 		}
 		if val != expected {
-			// fmt.Printf("stack %v\nops %v\n", e.machine.stack, e.machine.ops)
 			fmt.Printf("%s != %g\n", in, expected)
 			t.Errorf("%s != %g", in, expected)
 		}
 	}
 
-	test(t, e.expr, "10", 2)
-	test(t, e.expr, "1+2*3", 5)
-	test(t, e.expr, "(1)", 3)
-	test(t, e.expr, "(1))", -1)
-	test(t, e.expr, ")", -1)
-	test(t, e.expr, "+", -1)
-	test(t, e.expr, "(1+1)", 5)
-	test(t, e.expr, "1+)1", -1)
-	test(t, e.expr, "(1)+1)", -1)
-	test(t, e.expr, "1==1==1", -1)
+	testEval(".5", .5)
+	testEval("2.", 2.)
+	testEval("1.5", 1.5)
 
 	testEval("1-2", 1-2)
 	testEval("1+2", 1+2)
@@ -74,17 +60,17 @@ func TestExpr(t *testing.T) {
 	testEval(" ( 1 + 2 ) ", 3)
 	testEval(" 1 + ( 2 + 3 ) ", 6)
 
-	e.env["a"] = 5
+	env.Variables["a"] = 5
 	testEval("a", 5)
 
 	testEvalVar := func(in string, name string, expected float64) {
-		_, err := Eval(in)
+		_, err := env.Eval(in)
 		if err != nil {
 			t.Error(err)
 		}
-		val, ok := e.env[name]
+		val, ok := env.Variables[name]
 		if !ok || val != expected {
-			t.Errorf("%s != %g", name, expected)
+			t.Errorf("%s != %g", in, expected)
 		}
 	}
 
@@ -96,7 +82,14 @@ func TestExpr(t *testing.T) {
 	testEvalVar("c=1", "c", 1)
 	testEvalVar("c+=2*3", "c", 7)
 
-	testEval(".5", .5)
-	testEval("2.", 2.)
-	testEval("1.5", 1.5)
+	_, err := env.Eval("5=3")
+	if err.Error() != "no variable at left hand side" {
+		t.Fatal("error check left hand side")
+	}
+
+	_, err = env.Eval("d+=1")
+	if err.Error() != "variable d is undefined" {
+		t.Fatal("error variable undefined")
+	}
+
 }

@@ -2,6 +2,7 @@ package grammar
 
 import (
 	"fmt"
+	"reflect"
 	"testing"
 )
 
@@ -83,4 +84,87 @@ func TestRecurse(t *testing.T) {
 
 	test(t, parens, "(((x)))", 7)
 	test(t, parens, "(((x))", -1)
+}
+
+func testCode(t *testing.T, grammar Grammar, input string, expected []string, code *[]string) {
+	n := grammar.Parse(input)
+	if n == -1 && len(expected) == 0 {
+		return
+	}
+	if !reflect.DeepEqual(*code, expected) {
+		t.Errorf("code %s got %v expected %v)\n", input, *code, expected)
+	}
+}
+
+func TestPredicate(t *testing.T) {
+	var code []string
+
+	code = []string{}
+	opstack := []string{}
+
+	peek := func() string {
+		return opstack[len(opstack)-1]
+	}
+
+	eval := func() {
+		code = append(code, opstack[len(opstack)-1])
+		opstack = opstack[:len(opstack)-1]
+	}
+
+	reset := func(_ string) bool {
+		code = []string{}
+		opstack = []string{}
+		return true
+	}
+
+	output := func(in string) bool {
+		code = append(code, in)
+		return true
+	}
+
+	operator := func(in string) bool {
+		if len(opstack) > 0 {
+			top := peek()
+			if top == in {
+				if in == "=" {
+					// non assoc
+					return false
+				}
+				if in == "^" {
+					// right assoc
+				} else {
+					// left assoc
+					eval()
+				}
+			} else if top == "*" && in == "+" {
+				// eval right prio
+				eval()
+			}
+
+		}
+		opstack = append(opstack, in)
+		return true
+	}
+
+	finish := func(in string) bool {
+		for len(opstack) > 0 {
+			eval()
+		}
+		return true
+	}
+
+	num := Alts("1 2 3")
+	ops := Alts("+ * = ^")
+	expr := Sep1(Action(output, num), Action(operator, ops))
+	statement := And(Action(reset, Epsilon()), expr, Eof(), Action(finish, Epsilon()))
+
+	testCode(t, statement, "1+2", []string{"1", "2", "+"}, &code)
+	testCode(t, statement, "1^2^3", []string{"1", "2", "3", "^", "^"}, &code)
+	testCode(t, statement, "1+2+3", []string{"1", "2", "+", "3", "+"}, &code)
+	testCode(t, statement, "1=2", []string{"1", "2", "="}, &code)
+	testCode(t, statement, "1=2=3", []string{}, &code)
+	testCode(t, statement, "1+2*3", []string{"1", "2", "3", "*", "+"}, &code)
+	testCode(t, statement, "1*2+3", []string{"1", "2", "*", "3", "+"}, &code)
+	testCode(t, statement, "1*2+3*1", []string{"1", "2", "*", "3", "1", "*", "+"}, &code)
+
 }

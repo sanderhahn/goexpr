@@ -111,7 +111,6 @@ func Loop(rule Grammar) Grammar {
 func (loop loop) Parse(in string) int {
 	pos := 0
 	for pos < len(in) {
-		// fmt.Printf("in %s\n", in[pos:])
 		n := loop.Grammar.Parse(in[pos:])
 		if n <= 0 {
 			return pos

@@ -2,68 +2,58 @@ package expr
 
 import (
 	"log"
-	"strconv"
 
-	"github.com/sanderhahn/goexpr/grammar"
+	"github.com/sanderhahn/goexpr/ast"
 	. "github.com/sanderhahn/goexpr/grammar"
 )
 
-type Calculator interface {
-	Reset()
-	Number(float64)
-	Lookup(identifier string) bool
-	Operator(operator string) bool
-	Assignment(identifier string, operator string) bool
+type ExpressionParser interface {
+	Parse(input string) ast.Node
 }
 
-func Parser(calc Calculator) grammar.Grammar {
+type expressionParser struct {
+	grammar Grammar
+	builder ast.AstBuilder
+	opstack []string
+}
 
-	// Map grammar actions to calculator interface
+func Parser() ExpressionParser {
+
+	e := expressionParser{}
 
 	reset := func(_ string) bool {
-		calc.Reset()
+		e.builder.Reset()
+		e.opstack = e.opstack[:0]
 		return true
 	}
 
-	number := func(number string) bool {
-		value, err := strconv.ParseFloat(number, 64)
-		if err != nil {
-			log.Fatal(err)
-		}
-		calc.Number(value)
-		return true
-	}
-
-	lookup := func(identifier string) bool {
-		return calc.Lookup(identifier)
+	token := func(typ ast.TokenType, rule Grammar) Grammar {
+		return Action(func(value string) bool {
+			e.builder.Token(typ, value)
+			return true
+		}, rule)
 	}
 
 	operator := func(operator string) bool {
-		return calc.Operator(operator)
+		return e.pushOp(operator)
 	}
 
-	var assignIdentifier string
-	var assignOperator string
-
-	assignment := func(_ string) bool {
-		return calc.Assignment(assignIdentifier, assignOperator)
-	}
-
-	setAssignIdentifier := func(identifier string) bool {
-		assignIdentifier = identifier
+	paren := func(paren string) bool {
+		e.pushOp(paren)
 		return true
 	}
 
-	setAssignOperator := func(operator string) bool {
-		assignOperator = operator
+	finish := func(_ string) bool {
+		for len(e.opstack) > 0 {
+			e.popOp()
+		}
 		return true
 	}
 
 	// Grammar
 
 	ws := Opt(Loop1(Group(" \t")))
-	op := Alts("+ - ** * / || | && & <= << < >= >> > != == % ^")
-	assignOp := Or(And(Str("="), Notahead(Str("="))), Alts("+= -= **= *= /= ||= |= &&= &= %= ^="))
+	op := Alts("+= -= **= *= /= ||= |= &&= &= %= ^= + - ** * / || | && & <= << < >= >> > != == % ^ =")
 
 	digit := Group("0123456789")
 	alpha := Or(Rang('a', 'z'), Rang('A', 'Z'))
@@ -73,40 +63,133 @@ func Parser(calc Calculator) grammar.Grammar {
 
 	id := And(alpha, Loop(Or(alpha, digit)))
 
-	lparens := Loop(Action(operator, Str("(")))
-	rparens := Loop(Action(operator, Str(")")))
+	var expr Grammar
+	refexpr := Ref("expr", &expr)
 
 	term := And(
 		ws,
-		lparens,
-		ws,
 		Or(
-			Action(number, num),
-			Action(lookup, id),
-		),
-		ws,
-		rparens)
+			token(ast.Number, num),
+			token(ast.Identifier, id),
+			And(Action(paren, Str("(")), refexpr, ws, Action(paren, Str(")")))))
 
-	expr := Sep1(term, And(ws, Action(operator, op)))
-
-	assign := And(
-		Ahead(And(id, ws, assignOp)),
-		Action(assignment,
-			And(
-				Action(setAssignIdentifier, id),
-				ws,
-				Action(setAssignOperator, assignOp),
-				expr)))
+	expr = Sep1(term, And(ws, Action(operator, op)))
 
 	statement := And(
 		Action(reset, Epsilon()),
 		ws,
-		Or(
-			assign,
-			expr,
-		),
+		expr,
 		ws,
-		Eof())
+		Action(finish, Eof()))
 
-	return statement
+	e.grammar = statement
+	return &e
+}
+
+func (e *expressionParser) Parse(input string) ast.Node {
+	n := e.grammar.Parse(input)
+	if n >= 0 {
+		return e.builder.Root()
+	}
+	return nil
+}
+
+func (e *expressionParser) peekOp() string {
+	return e.opstack[len(e.opstack)-1]
+}
+
+func (e *expressionParser) pushOp(op string) bool {
+
+	if op == "(" {
+		e.opstack = append(e.opstack, op)
+		return true
+	} else if op == ")" {
+		for e.peekOp() != "(" {
+			e.popOp()
+		}
+		e.popOp()
+		return true
+	}
+
+	for len(e.opstack) > 0 {
+		assoc := operatorAssoc(e.peekOp(), op)
+		if assoc == non {
+			return false
+		} else if assoc == left {
+			e.popOp()
+		} else {
+			break
+		}
+	}
+
+	e.opstack = append(e.opstack, op)
+	return true
+}
+
+func operatorAssoc(last, operator string) assoc {
+	prioOp, assocOp := operatorInfo(operator)
+	prioLast, assocLast := operatorInfo(last)
+
+	// Operators of equal precedence that are non-associative cannot be used next to each other
+	if prioLast == prioOp && assocLast == non && assocOp == non {
+		return non
+	}
+
+	if (assocOp == left && prioOp >= prioLast) ||
+		(assocOp == right && prioOp > prioLast) ||
+		(assocOp == non && prioOp > prioLast) {
+		return left
+	}
+	return right
+}
+
+func (e *expressionParser) popOp() {
+	l := len(e.opstack) - 1
+	op := e.opstack[l]
+	e.opstack = e.opstack[:l]
+	if op != "(" {
+		e.builder.Token(ast.Operator, op)
+		e.builder.Evaluate()
+	} else {
+		e.builder.Group()
+	}
+}
+
+type assoc int
+
+const (
+	left assoc = iota
+	right
+	non
+)
+
+func operatorInfo(op string) (prio int, assoc assoc) {
+
+	switch op {
+	case "*", "/", "%", "<<", ">>", "&":
+		return 1, left
+	case "**":
+		return 1, right
+
+	case "+", "-", "|", "^":
+		return 2, left
+
+	case "==", "!=", "<", "<=", ">", ">=":
+		return 3, left
+
+	case "&&":
+		return 4, left
+
+	case "||":
+		return 5, left
+
+	case "=", "+=", "-=", "**=", "*=", "/=", "||=", "|=", "&&=", "&=", "%=", "^=":
+		return 9, non
+
+	case "(":
+		return 10, non
+	}
+
+	log.Fatalf("operator %s has no priority", op)
+	return -1, non
 }
